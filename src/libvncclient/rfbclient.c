@@ -602,6 +602,41 @@ HandleVncAuth(rfbClient *client)
     return TRUE;
 }
 
+static rfbCredential* get_credential(rfbClient* cl, int credentialType){
+	rfbCredential *c = malloc(sizeof(rfbCredential));
+	if (!c) {
+		return NULL;
+	}
+	c->userCredential.username = malloc(RFB_BUF_SIZE);
+	if (!c->userCredential.username) {
+		free(c);
+		return NULL;
+	}
+	c->userCredential.password = malloc(RFB_BUF_SIZE);
+	if (!c->userCredential.password) {
+		free(c->userCredential.username);
+		free(c);
+		return NULL;
+	}
+
+	if(credentialType != rfbCredentialTypeUser) {
+	    rfbClientErr("something else than username and password required for authentication\n");
+	    return NULL;
+	}
+
+	rfbClientLog("username and password required for authentication!\n");
+	printf("user: ");
+	fgets(c->userCredential.username, RFB_BUF_SIZE, stdin);
+	printf("pass: ");
+	fgets(c->userCredential.password, RFB_BUF_SIZE, stdin);
+
+	/* remove trailing newlines */
+	c->userCredential.username[strcspn(c->userCredential.username, "\n")] = 0;
+	c->userCredential.password[strcspn(c->userCredential.password, "\n")] = 0;
+
+	return c;
+}
+
 static void
 FreeUserCredential(rfbCredential *cred)
 {
@@ -616,6 +651,8 @@ HandlePlainAuth(rfbClient *client)
   uint32_t ulen, ulensw;
   uint32_t plen, plensw;
   rfbCredential *cred;
+
+  client->GetCredential = get_credential;
 
   if (!client->GetCredential)
   {

@@ -112,7 +112,7 @@ verify_certificate_callback (gnutls_session_t session)
       return GNUTLS_E_CERTIFICATE_ERROR;
     }
 
-  if (!gnutls_x509_crt_check_hostname (cert, hostname))
+  if (gnutls_x509_crt_check_hostname (cert, hostname))
     {
       rfbClientLog("The certificate's owner does not match hostname '%s'\n",
               hostname);
@@ -471,6 +471,31 @@ HandleAnonTLSAuth(rfbClient* client)
   return TRUE;
 }
 
+static rfbCredential* get_credential(rfbClient* cl, int credentialType){
+	rfbCredential *c = malloc(sizeof(rfbCredential));
+	if (!c) {
+		return NULL;
+	}
+	c->x509Credential.x509CACertFile = malloc(RFB_BUF_SIZE);
+	if (!c->x509Credential.x509CACertFile) {
+		free(c);
+		return NULL;
+	}
+	if(credentialType != rfbCredentialTypeX509) {
+	    rfbClientErr("The credential type must be defined.\n");
+	    return NULL;
+	}
+
+    strcpy(c->x509Credential.x509CACertFile,"/home/root/tls.crt");
+    rfbClientLog("CHAVE: %s\n",c->x509Credential.x509CACertFile);
+    c->x509Credential.x509CACrlFile =  NULL;
+    c->x509Credential.x509ClientCertFile = NULL;
+    c->x509Credential.x509ClientKeyFile = NULL;
+    c->x509Credential.x509CrlVerifyMode = 0;
+
+	return c;
+}
+
 rfbBool
 HandleVeNCryptAuth(rfbClient* client)
 {
@@ -547,6 +572,8 @@ HandleVeNCryptAuth(rfbClient* client)
   if (!anonTLS)
   {
     rfbCredential *cred;
+
+    client->GetCredential = get_credential;
 
     if (!client->GetCredential)
     {
