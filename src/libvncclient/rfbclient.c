@@ -432,6 +432,8 @@ rfbHandleAuthResult(rfbClient* client)
     uint32_t authResult=0;
 
     if (!ReadFromRFBServer(client, (char *)&authResult, 4)) return FALSE;
+    
+    rfbClientLog("Chegou aqui!!!!!!!!!!!!\n");
 
     authResult = rfbClientSwap32IfLE(authResult);
 
@@ -481,7 +483,7 @@ ReadSupportedSecurityType(rfbClient* client, uint32_t *result, rfbBool subAuth)
         return FALSE;
     }
 
-    rfbClientLog("We have %d security types to read\n", count);
+    rfbClientLog("We have %d security types to read- Form rfbclient\n", count);
     authScheme=0;
     /* now, we have a list of available security types to read ( uint8_t[] ) */
     for (loop=0;loop<count;loop++)
@@ -560,6 +562,7 @@ ReadSupportedSecurityType(rfbClient* client, uint32_t *result, rfbBool subAuth)
                buf1);
         return FALSE;
     }
+    rfbClientLog("Aqui no rfbclient a auth é %d\n",authScheme);
     *result = authScheme;
     return TRUE;
 }
@@ -602,6 +605,41 @@ HandleVncAuth(rfbClient *client)
     return TRUE;
 }
 
+static rfbCredential* get_credential(rfbClient* cl, int credentialType){
+	rfbCredential *c = malloc(sizeof(rfbCredential));
+	if (!c) {
+		return NULL;
+	}
+	c->userCredential.username = malloc(RFB_BUF_SIZE);
+	if (!c->userCredential.username) {
+		free(c);
+		return NULL;
+	}
+	c->userCredential.password = malloc(RFB_BUF_SIZE);
+	if (!c->userCredential.password) {
+		free(c->userCredential.username);
+		free(c);
+		return NULL;
+	}
+
+	if(credentialType != rfbCredentialTypeUser) {
+	    rfbClientErr("something else than username and password required for authentication\n");
+	    return NULL;
+	}
+
+	rfbClientLog("username and password required for authentication!\n");
+	printf("user: ");
+	fgets(c->userCredential.username, RFB_BUF_SIZE, stdin);
+	printf("pass: ");
+	fgets(c->userCredential.password, RFB_BUF_SIZE, stdin);
+
+	/* remove trailing newlines */
+	c->userCredential.username[strcspn(c->userCredential.username, "\n")] = 0;
+	c->userCredential.password[strcspn(c->userCredential.password, "\n")] = 0;
+
+	return c;
+}
+
 static void
 FreeUserCredential(rfbCredential *cred)
 {
@@ -617,9 +655,11 @@ HandlePlainAuth(rfbClient *client)
   uint32_t plen, plensw;
   rfbCredential *cred;
 
+  client->GetCredential = get_credential;
+
   if (!client->GetCredential)
   {
-    rfbClientLog("GetCredential callback is not set.\n");
+    rfbClientLog("GetCredential callback is not set Aqui é 1.\n");
     return FALSE;
   }
   cred = client->GetCredential(client, rfbCredentialTypeUser);
@@ -657,10 +697,9 @@ HandlePlainAuth(rfbClient *client)
   }
 
   FreeUserCredential(cred);
-
+rfbClientLog("PASSSOOOOUUUUUUU\n");
   /* Handle the SecurityResult message */
   if (!rfbHandleAuthResult(client)) return FALSE;
-
   return TRUE;
 }
 
@@ -715,7 +754,7 @@ HandleUltraMSLogonIIAuth(rfbClient *client)
 
   if (!client->GetCredential)
   {
-    rfbClientLog("GetCredential callback is not set.\n");
+    rfbClientLog("GetCredential callback is not set. Aqui é 2\n");
     return FALSE;
   }
   rfbClientLog("WARNING! MSLogon security type has very low password encryption! "\
@@ -762,7 +801,7 @@ HandleMSLogonAuth(rfbClient *client)
 
   if (!client->GetCredential)
   {
-    rfbClientLog("GetCredential callback is not set.\n");
+    rfbClientLog("GetCredential callback is not set. Aqui é 3\n");
     return FALSE;
   }
   rfbClientLog("WARNING! MSLogon security type has very low password encryption! "\
@@ -1046,7 +1085,8 @@ InitialiseRFBConnection(rfbClient* client)
   
   rfbClientLog("Selected Security Scheme %d\n", authScheme);
   client->authScheme = authScheme;
-  
+  rfbClientLog("O Metodo de autenticação é %d\n",authScheme);
+ 
   switch (authScheme) {
 
   case rfbConnFailed:
@@ -1124,8 +1164,9 @@ InitialiseRFBConnection(rfbClient* client)
     break;
 
   case rfbVeNCrypt:
+    rfbClientLog("Autenticação tipo rfbVeNCrypt\n");
     if (!HandleVeNCryptAuth(client)) return FALSE;
-
+    rfbClientLog("PAssando para subAuth\n");
     switch (client->subAuthScheme) {
       /*
        * rfbNoAuth and rfbVncAuth are not actually part of VeNCrypt, however
@@ -1159,6 +1200,7 @@ InitialiseRFBConnection(rfbClient* client)
       case rfbVeNCryptPlain:
       case rfbVeNCryptTLSPlain:
       case rfbVeNCryptX509Plain:
+        rfbClientLog("Mano do ceuuu!\n");
         if (!HandlePlainAuth(client)) return FALSE;
         break;
 

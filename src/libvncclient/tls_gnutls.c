@@ -81,8 +81,10 @@ verify_certificate_callback (gnutls_session_t session)
   if (status & GNUTLS_CERT_NOT_ACTIVATED)
     rfbClientLog("The certificate is not yet activated\n");
 
-  if (status)
+  if (!status){
+    rfbClientLog("-----> verify_certificate_callback: Returns ERROR\n");
     return GNUTLS_E_CERTIFICATE_ERROR;
+  }
 
   /* Up to here the process is the same for X.509 certificates and
    * OpenPGP keys. From now on X.509 certificates are assumed. This can
@@ -112,7 +114,7 @@ verify_certificate_callback (gnutls_session_t session)
       return GNUTLS_E_CERTIFICATE_ERROR;
     }
 
-  if (!gnutls_x509_crt_check_hostname (cert, hostname))
+  if (gnutls_x509_crt_check_hostname (cert, hostname))
     {
       rfbClientLog("The certificate's owner does not match hostname '%s'\n",
               hostname);
@@ -120,7 +122,6 @@ verify_certificate_callback (gnutls_session_t session)
     }
 
   gnutls_x509_crt_deinit (cert);
-
   /* notify gnutls to continue handshake normally */
   return 0;
 }
@@ -471,6 +472,45 @@ HandleAnonTLSAuth(rfbClient* client)
   return TRUE;
 }
 
+static rfbCredential* get_credential(rfbClient* cl, int credentialType){
+	rfbCredential *c = malloc(sizeof(rfbCredential));
+	if (!c) {
+		return NULL;
+	}
+	c->x509Credential.x509CACertFile = malloc(RFB_BUF_SIZE);
+	if (!c->x509Credential.x509CACertFile) {
+		free(c);
+		return NULL;
+	}
+    c->x509Credential.x509ClientCertFile = malloc(RFB_BUF_SIZE);
+	if (!c->x509Credential.x509ClientCertFile) {
+		free(c);
+		return NULL;
+	}
+    c->x509Credential.x509ClientKeyFile = malloc(RFB_BUF_SIZE);
+	if (!c->x509Credential.x509ClientKeyFile) {
+		free(c);
+		return NULL;
+	}
+
+	if(credentialType != rfbCredentialTypeX509) {
+	    rfbClientErr("Definindo as certificados !!!!!!\n");
+	    return NULL;
+	}
+    
+    strcpy(c->x509Credential.x509CACertFile,"/home/root/keys/ca-cert.pem");
+    //strcpy(c->x509Credential.x509ClientCertFile,"/home/root/keys/client-cert.pem");
+    //strcpy(c->x509Credential.x509ClientKeyFile,"/home/root/keys/client-key.pem");
+
+    //c->x509Credential.x509CACertFile = NULL;
+    c->x509Credential.x509CACrlFile =  NULL;
+    c->x509Credential.x509ClientCertFile = NULL;
+    c->x509Credential.x509ClientKeyFile = NULL;
+    c->x509Credential.x509CrlVerifyMode = 0;
+
+	return c;
+}
+
 rfbBool
 HandleVeNCryptAuth(rfbClient* client)
 {
@@ -509,7 +549,7 @@ HandleVeNCryptAuth(rfbClient* client)
 
   if (!ReadVeNCryptSecurityType(client, &authScheme)) return FALSE;
   client->subAuthScheme = authScheme;
-
+  rfbClientLog("R----------> QUAL ESQUEMA DE AUTHENTI: %d\n",authScheme);
   switch (authScheme)
   {
     /* Unencrypted types do not require additional actions */
@@ -548,9 +588,11 @@ HandleVeNCryptAuth(rfbClient* client)
   {
     rfbCredential *cred;
 
+    client->GetCredential = get_credential;
+
     if (!client->GetCredential)
     {
-      rfbClientLog("GetCredential callback is not set.\n");
+      rfbClientLog("GetCredential callback is not set. Aqui é 5\n");
       return FALSE;
     }
     cred = client->GetCredential(client, rfbCredentialTypeX509);
@@ -559,7 +601,7 @@ HandleVeNCryptAuth(rfbClient* client)
       rfbClientLog("Reading credential failed\n");
       return FALSE;
     }
-
+    rfbClientLog("CRED: %s\n",cred->x509Credential.x509CACrlFile);
     x509_cred = CreateX509CertCredential(cred);
     FreeX509Credential(cred);
     if (!x509_cred) return FALSE;
@@ -585,9 +627,9 @@ HandleVeNCryptAuth(rfbClient* client)
       return FALSE;
     }
   }
-
+  rfbClientLog("------------>VAI REALIZAR HANDSHAKE TLS\n"); 
   if (!HandshakeTLS(client)) return FALSE;
-
+  rfbClientLog("Positivo e opernate<------------\n");
   /* We are done here. The caller should continue with client->subAuthScheme
    * to do actual sub authentication.
    */
